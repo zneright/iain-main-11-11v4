@@ -1,8 +1,8 @@
-// C:\Users\Renz Jericho Buday\iain-main-11-11v3\firebase.js
+// [project]/iain-main-11-11v3/firebase.js
 
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, setLogLevel } from "firebase/firestore"; // ⬅️ NEW: Import getFirestore here
+import { setLogLevel } from "firebase/firestore";
 
 // Set log level (optional, but keep it if you want it)
 setLogLevel('debug');
@@ -14,8 +14,8 @@ const firebaseConfig = {
     projectId: "iain-f7c30",
     storageBucket: "iain-f7c30.firebasestorage.app",
     messagingSenderId: "854098983635",
-    appId: "1:854098983635:web:ce7aa8bb8f04e061093226",
-    measurementId: "G-2XBYBYQDX7"
+    appId: "1:854098983635:web:ce7aa8bb8f04e061093226", // Using the latest appId you provided
+    measurementId: "G-2XBYBYQDX7" // Using the latest measurementId you provided
 };
 
 let app;
@@ -31,16 +31,13 @@ if (!getApps().length) {
 // 2. GET AUTH INSTANCE
 authInstance = getAuth(app);
 
-// 3. GET FIRESTORE INSTANCE ⬅️ NEW: Initialization
-export const db = getFirestore(app);
-
-// 4. DEFINE initialAuthToken
+// 3. DEFINE initialAuthToken
 // Safely access the global variable __initial_auth_token
 const initialAuthToken = typeof __initial_auth_token !== 'undefined'
     ? __initial_auth_token
     : null;
 
-// 5. EXPORT all required members
+// 4. EXPORT all required members ⬅️ THIS RESOLVES THE ERROR
+
 export const auth = authInstance;
-export { initialAuthToken };
-// Note: 'db' is already exported on line 36.
+export { initialAuthToken }; // Exporting the variable defined above

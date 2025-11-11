@@ -1,3 +1,4 @@
+// app/login/page.tsx
 
 "use client";
 
@@ -12,7 +13,8 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-import { auth, initialAuthToken } from "../../firebase";
+// --- IMPORT AUTH AND INITIAL TOKEN FROM THE SEPARATE FILE ---
+import { auth, initialAuthToken } from "../../firebase"; // Adjust path as needed
 
 
 const CombinedLoginPage = () => {
@@ -22,9 +24,12 @@ const CombinedLoginPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
+  // Note: We skip the isConfigValid check since config is hardcoded and presumed valid
   const router = useRouter();
 
+  // 1. Auth Persistence and Anonymous Sign-in Initialization
   useEffect(() => {
+    // Only proceed if 'auth' object is available
     if (!auth) {
       setError("Firebase Authentication is not initialized.");
       setIsAuthReady(true);
@@ -55,6 +60,7 @@ const CombinedLoginPage = () => {
     initAuth();
   }, []);
 
+  // 2. Handle Sign In 
   const handleSignIn = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -73,6 +79,7 @@ const CombinedLoginPage = () => {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // Success: Redirect using Next.js router
       router.push("/");
     } catch (err: any) {
       console.error(err);
@@ -96,12 +103,14 @@ const CombinedLoginPage = () => {
     }
   };
 
+  // Styling (retained from original component 1)
   const inputContainerStyle = "relative mb-4";
   const inputStyle =
     "w-full p-3 bg-dark-3 border border-dark-3 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-1";
   const buttonStyle =
     "w-full p-3 rounded-lg bg-blue-1 text-white font-semibold hover:bg-purple-1 transition-colors duration-200 disabled:bg-gray-500 disabled:opacity-70";
 
+  // Disable form if loading or not ready
   const isDisabled = loading || !isAuthReady;
 
   return (
@@ -123,9 +132,12 @@ const CombinedLoginPage = () => {
           onSubmit={handleSignIn}
           className="p-8 bg-dark-2 rounded-lg shadow-xl"
         >
+          {/* ... other UI elements (Welcome Back, Sign In message) ... */}
           <h1 className="text-2xl font-bold mb-2 text-center text-gray-100">Welcome Back</h1>
           <p className="text-sm text-gray-400 mb-6 text-center">Please sign in to continue</p>
 
+
+          {/* Authentication Status/Error Display */}
           {!isAuthReady && !error && (
             <p className="text-blue-400 text-sm mb-4 text-center">
               Initializing Authentication Service...
@@ -136,6 +148,7 @@ const CombinedLoginPage = () => {
             <p className="text-red-500 text-sm mb-4 text-center">{error}</p>
           )}
 
+          {/* Email Input */}
           <div className={inputContainerStyle}>
             <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">Email</label>
             <input
@@ -150,6 +163,7 @@ const CombinedLoginPage = () => {
             />
           </div>
 
+          {/* Password Input */}
           <div className={inputContainerStyle}>
             <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">Password</label>
             <input
@@ -164,6 +178,7 @@ const CombinedLoginPage = () => {
             />
           </div>
 
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={isDisabled}
@@ -173,6 +188,7 @@ const CombinedLoginPage = () => {
           </button>
         </form>
 
+        {/* Legal Links (retained from original component 1) */}
         <div className="text-center mt-6 text-xs text-gray-500">
           <p>
             By signing in, you agree to our

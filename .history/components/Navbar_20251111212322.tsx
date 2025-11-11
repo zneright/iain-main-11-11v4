@@ -1,18 +1,13 @@
-// C:\Users\Renz Jericho Buday\iain-main-11-11v3\components\Navbar.tsx
+// components/Navbar.tsx
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Bell, User as UserIcon, Loader2, LogOut, Settings, CheckCircle, X, Upload } from "lucide-react";
 
-import { auth, db } from "../firebase";
-
-import {
-  onAuthStateChanged,
-  signOut,
-  updateProfile,
-  Auth
-} from "firebase/auth";
+// Firebase imports
+import { initializeApp } from 'firebase/app';
+import { getAuth, onAuthStateChanged, signOut, updateProfile, Auth } from "firebase/auth";
 import {
   collection,
   query,
@@ -27,7 +22,20 @@ import {
   getDocs,
   limit,
   Firestore,
+  getFirestore,
 } from "firebase/firestore";
+
+// --- IMPORTANT: Firebase Configuration (Using your provided values) ---
+const firebaseConfig = {
+  apiKey: "AIzaSyBVVzJHj2a8z8DEjBAGuvO4zc8fjrm92N8",
+  authDomain: "iain-f7c30.firebaseapp.com",
+  projectId: "iain-f7c30",
+  storageBucket: "iain-f7c30.firebasestorage.app",
+  messagingSenderId: "854098983635",
+  appId: "1:854098983635:web:30a821bfed2ada47093226",
+  measurementId: "G-4BRVSXBWKJ"
+};
+// -------------------------------------------------------------------
 
 interface Address {
   street?: string;
@@ -140,7 +148,7 @@ const NotificationItem = ({ id, title, description, time, isUnread = false, onSe
   );
 };
 
-const NotificationBell = ({ currentUser, isUpdating, markNotificationAsRead, markAllNotificationsAsRead, onNotificationSelect, openFullList }: {
+const NotificationBell = ({ currentUser, isUpdating, markNotificationAsRead, markAllNotificationsAsRead, onNotificationSelect, openFullList, db, auth }: {
   currentUser: UserState | null;
   isUpdating: boolean;
   markNotificationAsRead: (id: string, db: Firestore) => Promise<void>;
@@ -165,6 +173,7 @@ const NotificationBell = ({ currentUser, isUpdating, markNotificationAsRead, mar
     const notifQuery = query(
       collection(db, "notifications"),
       orderBy("createdAt", "desc"),
+      limit(50)
     );
 
     const unsubscribeFirestore = onSnapshot(notifQuery, (snapshot) => {
@@ -182,7 +191,7 @@ const NotificationBell = ({ currentUser, isUpdating, markNotificationAsRead, mar
       console.error("Error fetching notifications (Check Firestore Index): ", error);
     });
     return () => unsubscribeFirestore();
-  }, [currentUser]);
+  }, [currentUser, db]);
 
   const hasUnread = notifications.some((notif) => !notif.read);
 
@@ -228,7 +237,7 @@ const NotificationBell = ({ currentUser, isUpdating, markNotificationAsRead, mar
       {isOpen && (
         <div className="absolute right-0 top-full mt-3 w-80 max-h-[70vh] flex flex-col overflow-hidden rounded-xl bg-dark-1 text-white shadow-2xl border border-dark-2 z-50">
           <div className="p-3 border-b border-dark-2 flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Notifications</h2>
+            <h2 className="text-lg font-semibold">Notifications ({unreadCount})</h2>
             {hasUnread && db && (
               <button
                 onClick={() => markAllNotificationsAsRead(db)}
@@ -334,10 +343,11 @@ const ProfileDropdownUI = ({ currentUser, isProfileOpen, toggleProfileDropdown, 
 };
 
 
-const NotificationDetailsModal = ({ selectedNotification, markNotificationAsRead, onClose }: {
+const NotificationDetailsModal = ({ selectedNotification, markNotificationAsRead, onClose, db }: {
   selectedNotification: FirestoreNotification | null;
   markNotificationAsRead: (id: string, db: Firestore) => Promise<void>;
   onClose: () => void;
+  db: Firestore | null;
 }) => {
   if (!selectedNotification) return null;
 
@@ -415,11 +425,13 @@ const NotificationDetailsModal = ({ selectedNotification, markNotificationAsRead
 };
 
 
-const ProfileSettingsModal = ({ currentUser, isOpen, onClose, onUpdateSuccess }: {
+const ProfileSettingsModal = ({ currentUser, isOpen, onClose, onUpdateSuccess, db, auth }: {
   currentUser: UserState;
   isOpen: boolean;
   onClose: () => void;
   onUpdateSuccess: (updatedUser: UserState) => void;
+  db: Firestore | null;
+  auth: Auth | null;
 }) => {
   const [firstName, setFirstName] = useState(currentUser.firstName || "");
   const [lastName, setLastName] = useState(currentUser.lastName || "");
@@ -630,6 +642,7 @@ const ProfileSettingsModal = ({ currentUser, isOpen, onClose, onUpdateSuccess }:
                     className="w-full px-3 py-2 bg-dark-2 border border-dark-3 rounded-lg text-white placeholder-gray-500 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Enter last name"
                     required
+                    disabled={loading}
                   />
                 </div>
                 <div>
@@ -780,6 +793,22 @@ const Navbar = () => {
   const [isProfileSettingsModalOpen, setIsProfileSettingsModalOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<FirestoreNotification | null>(null);
 
+  // --- Firebase Instances ---
+  const [auth, setAuth] = useState<Auth | null>(null);
+  const [db, setDb] = useState<Firestore | null>(null);
+
+  // 1. Initialize Firebase Auth and Firestore
+  useEffect(() => {
+    try {
+      const app = initializeApp(firebaseConfig);
+      setAuth(getAuth(app));
+      setDb(getFirestore(app));
+    } catch (e) {
+      console.error("Firebase App initialization failed:", e);
+    }
+  }, []);
+  // --- End Firebase Instances ---
+
   const markNotificationAsRead = async (id: string, dbInstance: Firestore): Promise<void> => {
     if (isUpdating) return;
     setIsUpdating(true);
@@ -821,18 +850,17 @@ const Navbar = () => {
     setCurrentUser(updatedUser);
   }, []);
 
+  // 2. Auth State and Profile Fetching Logic (THE FIX)
   useEffect(() => {
-    if (!auth || !db) {
-      setLoading(false);
-      return;
-    }
+    if (!auth || !db) return;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // A. SET BASIC AUTH DATA & STOP LOADING STATE IMMEDIATELY (FAST UI)
         let profileData: UserState = {
           uid: user.uid,
           email: user.email,
-          displayName: user.displayName || user.email?.split('@')[0] || 'User',
+          displayName: user.displayName || user.email?.split('@')[0] || 'User', // Initial guess for display name
           profileImageUrl: user.photoURL,
           firstName: '', lastName: '', phone: '', gender: '', birthDate: '',
           address: { street: '', city: '', country: '', zip: '' },
@@ -843,7 +871,7 @@ const Navbar = () => {
         setLoading(false);
 
 
-        // B. FETCH RICH FIRESTORE DATA ASYNCHRONOUSLY
+        // B. FETCH RICH FIRESTORE DATA ASYNCHRONOUSLY (Updates UI if data found)
         try {
           const userDocRef = doc(db, "accounts", user.uid);
           const userDoc = await getDoc(userDocRef);
@@ -851,25 +879,22 @@ const Navbar = () => {
           if (userDoc.exists()) {
             const data = userDoc.data();
 
-            // Update profileData with rich Firestore data
-            profileData = {
-              ...profileData,
-              firstName: data.firstName || '',
-              lastName: data.lastName || '',
-              phone: data.phone || '',
-              gender: data.gender || '',
-              birthDate: data.birthDate || '',
-              profileImageUrl: data.profileImageUrl || user.photoURL,
-              address: {
-                street: data.address?.street || '',
-                city: data.address?.city || '',
-                country: data.address?.country || '',
-                zip: data.address?.zip || '',
-              },
+            profileData.firstName = data.firstName || '';
+            profileData.lastName = data.lastName || '';
+            profileData.phone = data.phone || '';
+            profileData.gender = data.gender || '';
+            profileData.birthDate = data.birthDate || '';
+            profileData.profileImageUrl = data.profileImageUrl || user.photoURL;
+
+            profileData.address = {
+              street: data.address?.street || '',
+              city: data.address?.city || '',
+              country: data.address?.country || '',
+              zip: data.address?.zip || '',
             };
 
             const fullName = `${profileData.firstName} ${profileData.lastName}`.trim();
-            profileData.displayName = fullName || profileData.displayName;
+            profileData.displayName = fullName || profileData.displayName; // Update display name
 
             // ⚡️ RENDER STEP 2: Update state with rich profile data
             setCurrentUser(profileData);
@@ -884,7 +909,7 @@ const Navbar = () => {
       }
     });
     return () => unsubscribeAuth();
-  }, []);
+  }, [auth, db]);
 
   // Handle click outside for profile dropdown
   useEffect(() => {
@@ -907,8 +932,7 @@ const Navbar = () => {
         await signOut(auth);
       }
       if (typeof window !== 'undefined') {
-        // Navigate to the login page after signing out
-        window.location.href = '/login';
+        window.location.href = '/sign-in';
       }
     } catch (error) {
       console.error("Error signing out:", error);
@@ -937,6 +961,7 @@ const Navbar = () => {
         </a>
 
         <div className="flex items-center gap-4">
+          {/* Notification Bell is rendered whether rich data is fetched or not, using basic currentUser */}
           <NotificationBell
             currentUser={currentUser}
             isUpdating={isUpdating}
@@ -950,6 +975,7 @@ const Navbar = () => {
 
           {currentUser ? (
             <div className="relative" ref={profileDropdownRef}>
+              {/* Profile UI is rendered immediately, potentially with initials/default image, then updates */}
               <ProfileDropdownUI
                 currentUser={currentUser}
                 isProfileOpen={isProfileOpen}
@@ -959,7 +985,8 @@ const Navbar = () => {
               />
             </div>
           ) : (
-            <Link href="/login" className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition">
+            // Render a sign-in link if no user is authenticated
+            <Link href="/sign-in" className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 transition">
               Sign In
             </Link>
           )}
@@ -971,6 +998,7 @@ const Navbar = () => {
         selectedNotification={selectedNotification}
         markNotificationAsRead={(id) => db ? markNotificationAsRead(id, db) : Promise.resolve()}
         onClose={() => setSelectedNotification(null)}
+        db={db}
       />
 
       {currentUser && (
@@ -979,6 +1007,8 @@ const Navbar = () => {
           isOpen={isProfileSettingsModalOpen}
           onClose={() => setIsProfileSettingsModalOpen(false)}
           onUpdateSuccess={handleProfileUpdateSuccess}
+          db={db}
+          auth={auth}
         />
       )}
     </div>
