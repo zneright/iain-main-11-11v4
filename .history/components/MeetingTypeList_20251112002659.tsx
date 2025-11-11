@@ -119,7 +119,8 @@ const MeetingTypeList = () => {
         description="Free Resume Analyzer for Applicants "
         className="bg-gray-800  "
         handleClick={() =>
-          window.open("https://iain-resumeee-nofd.vercel.app/iain-resumeee-nofd.vercel.app", "_blank")
+          window.open("https://iain-resumeee-nofd.vercel.app/
+iain-resumeee-nofd.vercel.app", "_blank")
         }
       />
 
