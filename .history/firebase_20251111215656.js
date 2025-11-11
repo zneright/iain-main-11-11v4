@@ -43,5 +43,4 @@ const initialAuthToken = typeof __initial_auth_token !== 'undefined'
 // 5. EXPORT all required members
 export const auth = authInstance;
 export { initialAuthToken };
-export const storage = getStorage(app);
 // Note: 'db' is already exported on line 36.

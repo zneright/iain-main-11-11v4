@@ -1,19 +1,20 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { FileText, Upload, Trash2, Loader2, Link as LinkIcon } from "lucide-react";
 
-import { auth, db, storage } from "../../../../firebase";
+// 1. Import Firebase services
+import { auth, db, storage } from "../../firebase"; // Assuming relative path
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { collection, query, where, getDocs, doc, setDoc, deleteDoc, Timestamp } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
 
 type Resume = {
-  id: string;
+  id: string; // Use string for Firestore document ID
   fileName: string;
   fileSize: string;
   uploadDate: string;
   fileUrl: string;
-  storagePath: string;
+  storagePath: string; // Path in Firebase Storage
 };
 
 const RESUMES_COLLECTION = "user_resumes";
@@ -28,21 +29,17 @@ const ResumeUploader: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoadingResumes, setIsLoadingResumes] = useState(true);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-    }
-  };
-
+  // --- Authentication State Listener ---
   useEffect(() => {
     if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
-      setIsLoadingResumes(true);
+      setIsLoadingResumes(true); // Re-trigger load on auth change
     });
     return () => unsubscribe();
   }, []);
 
+  // --- Fetch Resumes from Firestore ---
   const fetchResumes = useCallback(async (user: User) => {
     if (!db || !user) return;
     setIsLoadingResumes(true);
@@ -84,6 +81,7 @@ const ResumeUploader: React.FC = () => {
     }
   }, [currentUser, db, fetchResumes]);
 
+  // --- Upload Logic using Firebase Storage ---
   const handleUpload = async () => {
     if (!selectedFile || !currentUser || !db || !storage) {
       setError("Please log in and select a file.");
@@ -117,7 +115,7 @@ const ResumeUploader: React.FC = () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
 
           const newResume: Resume = {
-            id: fileId,
+            id: fileId, // Use the file ID as the Firestore document ID initially
             fileName: selectedFile.name,
             fileSize: `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB`,
             uploadDate: new Date().toLocaleDateString(),
@@ -125,13 +123,15 @@ const ResumeUploader: React.FC = () => {
             storagePath: storagePath,
           };
 
+          // Save metadata to Firestore
           const docRef = doc(db, RESUMES_COLLECTION, newResume.id);
           await setDoc(docRef, {
             ...newResume,
             uid: currentUser.uid,
-            uploadDate: Timestamp.now(),
+            uploadDate: Timestamp.now(), // Save as Firestore Timestamp
           });
 
+          // Update local state (fetch again to get fresh data, or manually update)
           await fetchResumes(currentUser);
           setSelectedFile(null);
           setIsUploading(false);
@@ -146,6 +146,7 @@ const ResumeUploader: React.FC = () => {
     );
   };
 
+  // --- Delete Logic using Firebase Storage and Firestore ---
   const handleDelete = async (resume: Resume) => {
     if (!currentUser || !db || !storage) return;
 
@@ -153,14 +154,18 @@ const ResumeUploader: React.FC = () => {
     setError(null);
 
     try {
+      // 1. Delete file from Firebase Storage
       const fileRef = ref(storage, resume.storagePath);
       await deleteObject(fileRef);
 
+      // 2. Delete document from Firestore
       const docRef = doc(db, RESUMES_COLLECTION, resume.id);
       await deleteDoc(docRef);
 
+      // 3. Update local state
       setResumes((prev) => prev.filter((r) => r.id !== resume.id));
 
+      // 4. If the active resume was deleted, clear the viewer
       if (activeResumeId === resume.id) {
         setActiveResumeId(null);
       }
@@ -186,6 +191,7 @@ const ResumeUploader: React.FC = () => {
     <section className="flex h-[750px] flex-col md:flex-row gap-4 text-white bg-[#1C1F2E] rounded-xl shadow-lg p-4">
       <h1 className="text-3xl font-bold mb-2 md:hidden">Resumes</h1>
 
+      {/* Sidebar: List of Uploaded Resumes */}
       <aside className="w-full md:w-1/3 lg:w-1/4 bg-[#2C2C3E] rounded-2xl p-4 flex flex-col">
         <h2 className="text-xl font-semibold mb-4">Uploaded Resumes</h2>
         {isLoadingResumes ? (
@@ -221,6 +227,7 @@ const ResumeUploader: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Delete Button */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -266,6 +273,7 @@ const ResumeUploader: React.FC = () => {
           )}
         </div>
 
+        {/* Resume Viewer Area */}
         <div className="flex-1 overflow-y-auto">
           {activeResumeFile ? (
             <div className="h-full flex flex-col">
